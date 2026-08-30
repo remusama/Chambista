@@ -1,70 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 import models
-import schemas
-from core.security import decode_access_token
+from core.auth_deps import get_current_user
 from typing import Optional
 
 router = APIRouter()
 
-def get_current_user_id(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Optional[int]:
-    """
-    Extrae el usuario_id del token JWT si está presente.
-    Si no, retorna None (modo compatibilidad para dev/tests).
-    """
-    if not authorization:
-        return None
-    try:
-        scheme, token = authorization.split(" ")
-        if scheme.lower() != "bearer":
-            return None
-        payload = decode_access_token(token)
-        if not payload:
-            return None
-        email: str = payload.get("sub")
-        if not email:
-            return None
-        user = db.query(models.Usuario).filter(models.Usuario.email == email).first()
-        return user.id if user else None
-    except Exception:
-        return None
-
-
 @router.get("/provider")
 def get_provider_dashboard(
-    provider_id: Optional[int] = None,
-    authorization: Optional[str] = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
 ):
     """
-    Dashboard del proveedor. Resuelve el ID en este orden:
-    1. Del JWT (Authorization: Bearer <token>)
-    2. Del query param ?provider_id=X  (fallback dev)
-    3. Hardcoded a 1 como último recurso
+    Dashboard del proveedor. Requiere autenticación obligatoria del prestador.
     """
-    # Intentar extraer del JWT
-    resolved_id = None
-    if authorization:
-        try:
-            scheme, token = authorization.split(" ")
-            payload = decode_access_token(token)
-            if payload:
-                email = payload.get("sub")
-                if email:
-                    user = db.query(models.Usuario).filter(models.Usuario.email == email).first()
-                    if user:
-                        resolved_id = user.id
-        except Exception:
-            pass
+    # IDOR / Role Prevention: Ensure the authenticated user is a provider/worker
+    if current_user.rol not in ["trabajador", "independiente", "empresa", "proveedor"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. Este dashboard es exclusivo para proveedores de servicios."
+        )
 
-    # Fallback: query param
-    if not resolved_id:
-        resolved_id = provider_id
-
-    # Último fallback: usuario 1
-    if not resolved_id:
-        resolved_id = 1
+    resolved_id = current_user.id
 
     provider = db.query(models.Usuario).filter(models.Usuario.id == resolved_id).first()
     if not provider:

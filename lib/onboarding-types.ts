@@ -27,7 +27,8 @@ export type OnboardingData = {
   celular: string
   celularVerificado: boolean
   correo: string
-  ciudad: string
+  ciudad: string // Representa el Departamento
+  provincia: string
   distrito: string
   zona: string
   // Oficios
@@ -64,6 +65,7 @@ export const INITIAL_ONBOARDING: OnboardingData = {
   celularVerificado: false,
   correo: '',
   ciudad: 'Lima',
+  provincia: '',
   distrito: '',
   zona: '',
   oficios: [],

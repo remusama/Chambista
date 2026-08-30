@@ -1,17 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
 from typing import Optional
-from core.security import decode_access_token
 from pydantic import BaseModel
+from core.auth_deps import get_current_user
 
 router = APIRouter()
 
 
 class PerfilProviderUpdate(BaseModel):
     usuario_id: Optional[int] = None
+    nombres: Optional[str] = None
+    apellidos: Optional[str] = None
+    dni: Optional[str] = None
+    ruc: Optional[str] = None
+    razon_social: Optional[str] = None
+    telefono: Optional[str] = None
+    departamento: Optional[str] = None
+    provincia: Optional[str] = None
+    distrito: Optional[str] = None
     oficio_principal: Optional[str] = None
     servicios: Optional[str] = None
     experiencia_anios: Optional[str] = None
@@ -26,45 +35,32 @@ class PerfilProviderUpdate(BaseModel):
     precio_referencial: Optional[str] = None
 
 
-def get_user_from_token(authorization: Optional[str], db: Session) -> Optional[models.Usuario]:
-    if not authorization:
-        return None
-    try:
-        scheme, token = authorization.split(" ")
-        payload = decode_access_token(token)
-        if not payload:
-            return None
-        email = payload.get("sub")
-        return db.query(models.Usuario).filter(models.Usuario.email == email).first()
-    except Exception:
-        return None
-
-
 @router.post("/perfil")
 def create_or_update_perfil(
     data: PerfilProviderUpdate,
-    authorization: Optional[str] = Header(None),
+    current_user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Crea o actualiza el PerfilPrestador del usuario autenticado.
     Usable desde el onboarding wizard al finalizar.
     """
-    # Resolver usuario por JWT o por usuario_id en body
-    user = get_user_from_token(authorization, db)
-    if not user and data.usuario_id:
-        user = db.query(models.Usuario).filter(models.Usuario.id == data.usuario_id).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="No autorizado o usuario no encontrado")
-
     # Actualizar rol a trabajador si era cliente
-    if user.rol == "cliente":
-        user.rol = "trabajador"
+    if current_user.rol == "cliente":
+        current_user.rol = "trabajador"
+
+    # Actualizar datos de usuario
+    if data.nombres is not None: current_user.nombre = data.nombres
+    if data.apellidos is not None: current_user.apellidos = data.apellidos
+    if data.dni is not None: current_user.dni = data.dni
+    if data.telefono is not None: current_user.telefono = data.telefono
+    if data.departamento is not None: current_user.departamento = data.departamento
+    if data.provincia is not None: current_user.provincia = data.provincia
+    if data.distrito is not None: current_user.distrito_principal = data.distrito
 
     # Buscar perfil existente
     perfil = db.query(models.PerfilPrestador).filter(
-        models.PerfilPrestador.usuario_id == user.id
+        models.PerfilPrestador.usuario_id == current_user.id
     ).first()
 
     if perfil:
@@ -81,10 +77,14 @@ def create_or_update_perfil(
         if data.fotos_trabajos is not None: perfil.fotos_trabajos = data.fotos_trabajos
         if data.tipo_cobro is not None: perfil.tipo_cobro = data.tipo_cobro
         if data.precio_referencial is not None: perfil.precio_referencial = data.precio_referencial
+        if data.ruc is not None: 
+            perfil.ruc = data.ruc
+            perfil.tiene_ruc = True
+        if data.razon_social is not None: perfil.razon_social = data.razon_social
     else:
         # Create
         perfil = models.PerfilPrestador(
-            usuario_id=user.id,
+            usuario_id=current_user.id,
             oficio_principal=data.oficio_principal,
             servicios=data.servicios,
             experiencia_anios=data.experiencia_anios,
@@ -97,61 +97,24 @@ def create_or_update_perfil(
             fotos_trabajos=data.fotos_trabajos,
             tipo_cobro=data.tipo_cobro,
             precio_referencial=data.precio_referencial,
+            ruc=data.ruc,
+            tiene_ruc=True if data.ruc else False,
+            razon_social=data.razon_social
         )
         db.add(perfil)
 
     db.commit()
     db.refresh(perfil)
-    db.refresh(user)
+    db.refresh(current_user)
 
     return {
         "message": "Perfil guardado exitosamente",
         "perfil_id": perfil.id,
-        "rol": user.rol
+        "rol": current_user.rol
     }
 
 
-@router.post("/register")
-def register_provider(
-    provider_data: schemas.RegistroPrestadorCompleto,
-    db: Session = Depends(get_db)
-):
-    user = db.query(models.Usuario).filter(models.Usuario.email == provider_data.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    perfil_existente = db.query(models.PerfilPrestador).filter(
-        models.PerfilPrestador.usuario_id == user.id
-    ).first()
-    if perfil_existente:
-        raise HTTPException(status_code=400, detail="Este usuario ya tiene un perfil de proveedor.")
-
-    if user.rol == "cliente":
-        user.rol = "trabajador"
-
-    nuevo_perfil = models.PerfilPrestador(
-        usuario_id=user.id,
-        oficio_principal=provider_data.oficio_principal,
-        servicios=provider_data.servicios,
-        experiencia_anios=provider_data.experiencia_anios,
-        zonas_atencion=provider_data.zonas_atencion,
-        dias_trabajo=provider_data.dias_trabajo,
-        horario_atencion=provider_data.horario_atencion,
-        atiende_emergencias=provider_data.atiende_emergencias,
-        descripcion=provider_data.descripcion,
-        tipo_cobro=provider_data.tipo_cobro,
-        precio_referencial=provider_data.precio_referencial
-    )
-
-    db.add(nuevo_perfil)
-    db.commit()
-    db.refresh(nuevo_perfil)
-
-    return {
-        "message": "Perfil de proveedor creado exitosamente",
-        "perfil_id": nuevo_perfil.id,
-        "nuevo_rol": user.rol
-    }
 
 
 @router.get("/")

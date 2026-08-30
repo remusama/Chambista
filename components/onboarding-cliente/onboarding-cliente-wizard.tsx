@@ -7,13 +7,15 @@ import { ChambistaLogo } from '@/components/chambista-logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CIUDADES, DISTRITOS_POR_CIUDAD, categories } from '@/lib/chambista-data'
+import { categories } from '@/lib/chambista-data'
+import { PERU, getProvincias, getDistritos } from '@/lib/peru-locations'
 
 type ClienteData = {
   nombre: string
   email: string
   password: string
   ciudad: string
+  provincia: string
   distrito: string
   zona: string
   serviciosFrecuentes: string[]
@@ -30,18 +32,30 @@ export function OnboardingClienteWizard() {
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
+  const [emailError, setEmailError] = useState('')
   const [data, setData] = useState<ClienteData>({
     nombre: '',
     email: '',
     password: '',
-    ciudad: 'Lima',
+    ciudad: '',
+    provincia: '',
     distrito: '',
     zona: '',
     serviciosFrecuentes: [],
   })
 
   function update(patch: Partial<ClienteData>) {
-    setData((prev) => ({ ...prev, ...patch }))
+    setData((prev) => {
+      const updated = { ...prev, ...patch };
+      if (patch.ciudad !== undefined) {
+        updated.provincia = '';
+        updated.distrito = '';
+      }
+      if (patch.provincia !== undefined) {
+        updated.distrito = '';
+      }
+      return updated;
+    })
   }
 
   function toggleServicio(id: string) {
@@ -53,12 +67,23 @@ export function OnboardingClienteWizard() {
     })
   }
 
+  const getPasswordStrength = () => {
+    let score = 0;
+    if (data.password.length >= 8) score++;
+    if (/[A-Z]/.test(data.password)) score++;
+    if (/[a-z]/.test(data.password)) score++;
+    if (/[0-9]/.test(data.password)) score++;
+    return score;
+  };
+
+  const isPasswordSecure = getPasswordStrength() === 4;
+
   function isValid(): boolean {
     switch (step) {
       case 0:
-        return !!data.nombre && !!data.email && data.password.length >= 6
+        return !!data.nombre && !!data.email && isPasswordSecure
       case 1:
-        return !!data.ciudad && !!data.distrito
+        return !!data.ciudad && !!data.provincia && !!data.distrito
       default:
         return true
     }
@@ -110,6 +135,7 @@ export function OnboardingClienteWizard() {
           },
           body: JSON.stringify({
             ciudad: data.ciudad,
+            provincia: data.provincia,
             distrito: data.distrito,
             zona: data.zona,
             servicios_frecuentes: data.serviciosFrecuentes.join(','),
@@ -125,11 +151,35 @@ export function OnboardingClienteWizard() {
     }
   }
 
-  function next() {
+  async function next() {
     if (!isValid()) {
       alert('Completa los campos obligatorios para continuar.')
       return
     }
+
+    if (emailError) {
+      alert('Por favor, corrige los errores en los campos antes de continuar.')
+      return
+    }
+
+    if (step === 0) {
+      setLoading(true)
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
+        const check = await res.json()
+        if (check.exists) {
+          setEmailError('Este correo electrónico ya está registrado.')
+          alert('El correo electrónico ya está en uso. Por favor ingresa uno diferente.')
+          setLoading(false)
+          return
+        }
+      } catch (e) {
+        console.error("Error checking email duplicity on step 0 next:", e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     if (step < PASOS_CLIENTE.length - 1) {
       setStep((s) => s + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -209,8 +259,22 @@ export function OnboardingClienteWizard() {
                 type="email"
                 placeholder="tucorreo@ejemplo.com"
                 value={data.email}
-                onChange={(e) => update({ email: e.target.value })}
+                onChange={(e) => { update({ email: e.target.value }); setEmailError('') }}
+                onBlur={async () => {
+                  if (data.email && data.email.includes('@')) {
+                    try {
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
+                      const check = await res.json()
+                      if (check.exists) {
+                        setEmailError('Este correo electrónico ya está registrado.')
+                      } else {
+                        setEmailError('')
+                      }
+                    } catch (e) {}
+                  }
+                }}
               />
+              {emailError && <p className="text-xs text-red-500 font-medium">{emailError}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="cl-pass">Contraseña *</Label>
@@ -218,7 +282,7 @@ export function OnboardingClienteWizard() {
                 <Input
                   id="cl-pass"
                   type={showPass ? 'text' : 'password'}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Ej. Chambista2026!"
                   value={data.password}
                   onChange={(e) => update({ password: e.target.value })}
                 />
@@ -229,6 +293,43 @@ export function OnboardingClienteWizard() {
                 >
                   {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
+              </div>
+
+              {/* Password Requirements and Strength Bar */}
+              <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <p className="text-xs font-semibold text-slate-700">Fuerza de la contraseña:</p>
+                <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      getPasswordStrength() === 0 ? 'w-0' :
+                      getPasswordStrength() === 1 ? 'w-1/4 bg-red-500' :
+                      getPasswordStrength() === 2 ? 'w-2/4 bg-orange-500' :
+                      getPasswordStrength() === 3 ? 'w-3/4 bg-yellow-500' :
+                      'w-full bg-green-500'
+                    }`}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {getPasswordStrength() === 0 && 'Ingresa una contraseña'}
+                  {getPasswordStrength() === 1 && 'Contraseña muy débil'}
+                  {getPasswordStrength() === 2 && 'Contraseña débil'}
+                  {getPasswordStrength() === 3 && 'Contraseña media'}
+                  {getPasswordStrength() === 4 && 'Contraseña fuerte y segura'}
+                </p>
+                <ul className="text-xs space-y-1 text-slate-600 mt-2 font-medium">
+                  <li className={`flex items-center gap-1.5 ${data.password.length >= 8 ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className="size-1.5 rounded-full bg-current" /> Mínimo 8 caracteres
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${/[A-Z]/.test(data.password) ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className="size-1.5 rounded-full bg-current" /> Al menos una letra mayúscula
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${/[a-z]/.test(data.password) ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className="size-1.5 rounded-full bg-current" /> Al menos una letra minúscula
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${/[0-9]/.test(data.password) ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className="size-1.5 rounded-full bg-current" /> Al menos un número
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
@@ -242,43 +343,53 @@ export function OnboardingClienteWizard() {
             </p>
 
             <div className="space-y-2">
-              <Label>Ciudad *</Label>
-              <div className="flex flex-wrap gap-2">
-                {CIUDADES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => update({ ciudad: c })}
-                    className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
-                      data.ciudad === c
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-card text-foreground hover:border-primary/40'
-                    }`}
-                  >
-                    {c}
-                  </button>
+              <Label htmlFor="cl-dept">Departamento *</Label>
+              <select
+                id="cl-dept"
+                value={data.ciudad}
+                onChange={(e) => update({ ciudad: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              >
+                <option value="">Selecciona</option>
+                {PERU.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
             <div className="space-y-2">
-              <Label>Distrito *</Label>
-              <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
-                {(DISTRITOS_POR_CIUDAD[data.ciudad] || []).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => update({ distrito: d })}
-                    className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                      data.distrito === d
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-card text-foreground hover:border-primary/40'
-                    }`}
-                  >
-                    {d}
-                  </button>
+              <Label htmlFor="cl-prov">Provincia *</Label>
+              <select
+                id="cl-prov"
+                value={data.provincia}
+                onChange={(e) => update({ provincia: e.target.value })}
+                disabled={!data.ciudad}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                required
+              >
+                <option value="">Selecciona</option>
+                {getProvincias(data.ciudad).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-              </div>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cl-dist">Distrito *</Label>
+              <select
+                id="cl-dist"
+                value={data.distrito}
+                onChange={(e) => update({ distrito: e.target.value })}
+                disabled={!data.provincia}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                required
+              >
+                <option value="">Selecciona</option>
+                {getDistritos(data.ciudad, data.provincia).map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { X, Star, MapPin, Clock, BadgeCheck, Briefcase, Phone, MessageCircle } from "lucide-react"
+import { useState, useEffect } from "react"
+import { X, Star, MapPin, Clock, BadgeCheck, Briefcase, Phone, MessageCircle, Heart } from "lucide-react"
 import type { Provider } from "@/lib/chambista-data"
 import { BookingModal } from "./booking-modal"
 
@@ -15,6 +15,30 @@ export function ProviderDetail({
   onMessage: () => void
 }) {
   const [showBooking, setShowBooking] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(false)
+
+  // Sync favorite state with localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && provider) {
+      const favs = JSON.parse(localStorage.getItem("chambista_favorites") || "[]")
+      setIsFavorite(favs.includes(provider.id))
+    }
+  }, [provider])
+
+  const toggleFavorite = () => {
+    if (typeof window === "undefined" || !provider) return
+    const favs = JSON.parse(localStorage.getItem("chambista_favorites") || "[]")
+    let newFavs: string[] = []
+    if (favs.includes(provider.id)) {
+      newFavs = favs.filter((id: string) => id !== provider.id)
+      setIsFavorite(false)
+    } else {
+      newFavs = [...favs, provider.id]
+      setIsFavorite(true)
+    }
+    localStorage.setItem("chambista_favorites", JSON.stringify(newFavs))
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col justify-end bg-foreground/40"
@@ -29,6 +53,15 @@ export function ProviderDetail({
       >
         <div className="sticky top-0 flex justify-center bg-background pb-2 pt-3">
           <span className="h-1.5 w-10 rounded-full bg-border" />
+          
+          <button
+            onClick={toggleFavorite}
+            aria-label={isFavorite ? "Quitar de favoritos" : "Guardar en favoritos"}
+            className="absolute left-4 top-3 flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-rose-50 transition"
+          >
+            <Heart className={`size-4 ${isFavorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"}`} aria-hidden="true" />
+          </button>
+
           <button
             onClick={onClose}
             aria-label="Cerrar"
@@ -59,9 +92,9 @@ export function ProviderDetail({
         </div>
 
         <div className="mx-6 mt-5 grid grid-cols-3 divide-x divide-border rounded-2xl border border-border bg-card py-3">
-          <Stat icon={<Star className="size-4 fill-chart-4 text-chart-4" />} value={`${provider.rating}`} label={`${provider.reviews} reseñas`} />
-          <Stat icon={<Briefcase className="size-4 text-primary" />} value={`${provider.jobsDone}`} label="trabajos" />
-          <Stat icon={<Clock className="size-4 text-accent" />} value={provider.responseTime} label="respuesta" />
+          <Stat icon={<Star className="size-4 fill-chart-4 text-chart-4" />} value={`${provider.rating || 0}`} label={`${provider.reviews || 0} reseñas`} />
+          <Stat icon={<Briefcase className="size-4 text-primary" />} value={`${provider.jobsDone || 0}`} label="trabajos" />
+          <Stat icon={<Clock className="size-4 text-accent" />} value={provider.responseTime || "Rápido"} label="respuesta" />
         </div>
 
         <div className="mx-6 mt-4 flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-foreground">

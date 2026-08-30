@@ -28,19 +28,31 @@ export type StepProps = {
 
 // Step -1: Account creation
 function StepCuenta({
-  nombre, setNombre,
   email, setEmail,
   password, setPassword,
   rol, setRol,
   loading, onSubmit,
+  emailError, setEmailError,
 }: {
-  nombre: string; setNombre: (v: string) => void
   email: string; setEmail: (v: string) => void
   password: string; setPassword: (v: string) => void
   rol: string; setRol: (v: string) => void
   loading: boolean; onSubmit: () => void
+  emailError: string; setEmailError: (v: string) => void
 }) {
   const [showPass, setShowPass] = useState(false)
+
+  const getPasswordStrength = () => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    return score;
+  };
+
+  const isPasswordSecure = getPasswordStrength() === 4;
+
   return (
     <div className="space-y-5">
       <div className="space-y-2">
@@ -67,24 +79,25 @@ function StepCuenta({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="oc-nombre">Nombre completo *</Label>
-        <Input
-          id="oc-nombre"
-          placeholder="Ej. Juan Pérez"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-        />
-      </div>
-
-      <div className="space-y-2">
         <Label htmlFor="oc-email">Correo electrónico *</Label>
         <Input
           id="oc-email"
           type="email"
           placeholder="tucorreo@ejemplo.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => { setEmail(e.target.value); setEmailError('') }}
+          onBlur={async () => {
+            if (email && email.includes('@')) {
+              try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(email)}`)
+                const d = await res.json()
+                if (d.exists) setEmailError('Este correo electrónico ya está registrado.')
+                else setEmailError('')
+              } catch (e) {}
+            }
+          }}
         />
+        {emailError && <p className="text-xs text-red-500 font-medium">{emailError}</p>}
       </div>
 
       <div className="space-y-2">
@@ -93,7 +106,7 @@ function StepCuenta({
           <Input
             id="oc-pass"
             type={showPass ? 'text' : 'password'}
-            placeholder="Mínimo 8 caracteres"
+            placeholder="Ej. Chambista2026!"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -105,11 +118,48 @@ function StepCuenta({
             {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
+
+        {/* Password strength bar and labels */}
+        <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-4 border border-slate-100">
+          <p className="text-xs font-semibold text-slate-700">Fuerza de la contraseña:</p>
+          <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                getPasswordStrength() === 0 ? 'w-0' :
+                getPasswordStrength() === 1 ? 'w-1/4 bg-red-500' :
+                getPasswordStrength() === 2 ? 'w-2/4 bg-orange-500' :
+                getPasswordStrength() === 3 ? 'w-3/4 bg-yellow-500' :
+                'w-full bg-green-500'
+              }`}
+            />
+          </div>
+          <p className="text-[10px] text-slate-500 font-medium">
+            {getPasswordStrength() === 0 && 'Ingresa una contraseña'}
+            {getPasswordStrength() === 1 && 'Contraseña muy débil'}
+            {getPasswordStrength() === 2 && 'Contraseña débil'}
+            {getPasswordStrength() === 3 && 'Contraseña media'}
+            {getPasswordStrength() === 4 && 'Contraseña fuerte y segura'}
+          </p>
+          <ul className="text-xs space-y-1 text-slate-600 mt-2 font-medium">
+            <li className={`flex items-center gap-1.5 ${password.length >= 8 ? 'text-green-600' : 'text-red-500'}`}>
+              <span className="size-1.5 rounded-full bg-current" /> Mínimo 8 caracteres
+            </li>
+            <li className={`flex items-center gap-1.5 ${/[A-Z]/.test(password) ? 'text-green-600' : 'text-red-500'}`}>
+              <span className="size-1.5 rounded-full bg-current" /> Al menos una letra mayúscula
+            </li>
+            <li className={`flex items-center gap-1.5 ${/[a-z]/.test(password) ? 'text-green-600' : 'text-red-500'}`}>
+              <span className="size-1.5 rounded-full bg-current" /> Al menos una letra minúscula
+            </li>
+            <li className={`flex items-center gap-1.5 ${/[0-9]/.test(password) ? 'text-green-600' : 'text-red-500'}`}>
+              <span className="size-1.5 rounded-full bg-current" /> Al menos un número
+            </li>
+          </ul>
+        </div>
       </div>
 
       <Button
         onClick={onSubmit}
-        disabled={loading || !nombre || !email || !password || password.length < 6}
+        disabled={loading || !email || !password || !isPasswordSecure || !!emailError}
         className="w-full"
       >
         {loading ? 'Creando cuenta...' : 'Crear cuenta y continuar →'}
@@ -128,6 +178,7 @@ export function OnboardingWizard() {
   const [password, setPassword] = useState('')
   const [rol, setRol] = useState('independiente')
   const [registering, setRegistering] = useState(false)
+  const [emailError, setEmailError] = useState('')
 
   // Wizard steps state
   const [step, setStep] = useState(0)
@@ -142,13 +193,14 @@ export function OnboardingWizard() {
   )
 
   async function handleCreateAccount() {
-    if (!nombre || !email || !password) return
+    if (!email || !password) return
     setRegistering(true)
     try {
+      const fallbackName = email.split('@')[0]
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, password, rol }),
+        body: JSON.stringify({ nombre: fallbackName, email, password, rol }),
       })
       if (!res.ok) {
         const d = await res.json()
@@ -166,19 +218,14 @@ export function OnboardingWizard() {
         const ld = await lr.json()
         localStorage.setItem('chambista_token', ld.access_token)
         localStorage.setItem('chambista_rol', ld.rol)
-        localStorage.setItem('chambista_nombre', ld.nombre || nombre)
-        
-        // Auto-fill wizard data based on selected role and name
-        const parts = nombre.trim().split(' ')
-        const splitIndex = Math.ceil(parts.length / 2)
-        const firstNames = parts.slice(0, splitIndex).join(' ')
-        const lastNames = parts.slice(splitIndex).join(' ')
+        localStorage.setItem('chambista_nombre', ld.nombre || fallbackName)
         
         update({
           tipoCuenta: rol === 'empresa' ? 'empresa' : 'natural',
-          razonSocial: rol === 'empresa' ? nombre : '',
-          nombres: rol !== 'empresa' ? firstNames : '',
-          apellidos: rol !== 'empresa' ? lastNames : '',
+          razonSocial: rol === 'empresa' ? fallbackName : '',
+          nombres: '',
+          apellidos: '',
+          correo: email,
         })
       }
       setAccountDone(true)
@@ -229,6 +276,15 @@ export function OnboardingWizard() {
       // Crear o actualizar el perfil de prestador con todos los datos del wizard
       const profilePayload = {
         usuario_id: meData.id,
+        nombres: data.nombres,
+        apellidos: data.apellidos,
+        dni: data.numeroDocumento,
+        ruc: data.ruc,
+        razon_social: data.razonSocial,
+        telefono: data.celular,
+        departamento: data.ciudad,
+        provincia: data.provincia,
+        distrito: data.distrito,
         oficio_principal: data.oficios[0] || '',
         servicios: data.especialidades.join(','),
         experiencia_anios: data.aniosExperiencia,
@@ -302,20 +358,18 @@ export function OnboardingWizard() {
 
       <main className="mx-auto max-w-3xl px-4 py-8 pb-28">
         {!accountDone ? (
-          <>
-            <div className="mb-6">
-              <h1 className="font-heading text-2xl font-bold text-foreground">Crea tu cuenta de proveedor</h1>
-              <p className="mt-1 text-muted-foreground">Primero cuéntanos quién eres para comenzar.</p>
-            </div>
-            <StepCuenta
-              nombre={nombre} setNombre={setNombre}
-              email={email} setEmail={setEmail}
-              password={password} setPassword={setPassword}
-              rol={rol} setRol={setRol}
-              loading={registering}
-              onSubmit={handleCreateAccount}
-            />
-          </>
+          <StepCuenta
+            email={email}
+            setEmail={setEmail}
+            password={password}
+            setPassword={setPassword}
+            rol={rol}
+            setRol={setRol}
+            loading={registering}
+            onSubmit={handleCreateAccount}
+            emailError={emailError}
+            setEmailError={setEmailError}
+          />
         ) : (
           <>
             {/* Step indicator */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MessageCircle, ArrowLeft, Send, Phone, Loader2 } from "lucide-react"
+import { MessageCircle, ArrowLeft, Send, Phone, Loader2, Wrench, CalendarDays, Clock3, MapPin, AlignLeft, CheckCircle2 } from "lucide-react"
 import type { Provider } from "@/lib/chambista-data"
 
 const API = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/chat` : "http://localhost:8000/api/chat"
@@ -44,9 +44,12 @@ export function ChatView({
     setConvId(null)
     setLoading(true)
 
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+
     fetch(`${API}/conversaciones`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({
         cliente_username: currentUser,
         prestador_id: provider.id,
@@ -58,7 +61,9 @@ export function ChatView({
       .then(async (conv) => {
         setConvId(conv.id)
         // Load existing messages
-        const msgs = await fetch(`${API}/conversaciones/${conv.id}/mensajes`).then((r) => r.json())
+        const msgs = await fetch(`${API}/conversaciones/${conv.id}/mensajes`, {
+          headers: authHeaders
+        }).then((r) => r.json())
         setMessages(msgs.map((m: any) => ({ id: String(m.id), texto: m.texto, remitente: m.remitente, created_at: m.created_at })))
       })
       .catch(() => {
@@ -68,12 +73,44 @@ export function ChatView({
       .finally(() => setLoading(false))
   }, [provider, currentUser])
 
+  // Poll for new messages every 3 seconds when conversation is open
+  useEffect(() => {
+    if (!convId || convId <= 0) return
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+
+    const interval = setInterval(async () => {
+      try {
+        const msgs = await fetch(`${API}/conversaciones/${convId}/mensajes`, {
+          headers: authHeaders
+        }).then((r) => r.ok ? r.json() : [])
+        
+        if (Array.isArray(msgs)) {
+          setMessages(msgs.map((m: any) => ({ 
+            id: String(m.id), 
+            texto: m.texto, 
+            remitente: m.remitente, 
+            created_at: m.created_at 
+          })))
+        }
+      } catch (e) {
+        console.error("Error polling messages:", e)
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [convId])
+
   // Load conversation list when no active provider
   useEffect(() => {
     if (activeProvider) return
-    fetch(`${API}/conversaciones/${currentUser}`)
-      .then((r) => r.json())
-      .then(setConversations)
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+    fetch(`${API}/conversaciones/${currentUser}`, {
+      headers: authHeaders
+    })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setConversations(Array.isArray(data) ? data : []))
       .catch(() => setConversations([]))
   }, [activeProvider, currentUser])
 
@@ -87,9 +124,11 @@ export function ChatView({
 
     if (convId && convId > 0) {
       try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+        const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
         await fetch(`${API}/conversaciones/${convId}/mensajes`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({ texto: clean, remitente: "cliente" }),
         })
       } catch {
@@ -138,19 +177,100 @@ export function ChatView({
               </p>
             </div>
           ) : (
-            messages.map((m) => (
-              <div key={m.id} className={`flex w-full ${m.remitente === "cliente" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                    m.remitente === "cliente"
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-muted text-foreground rounded-bl-sm"
-                  }`}
-                >
-                  {m.texto}
+            messages.map((m) => {
+              const isCard = m.texto.startsWith("[TARJETA_SOLICITUD]")
+              if (isCard) {
+                const lines = m.texto.split("\n")
+                const parse = (key: string) => lines.find(l => l.includes(key))?.split(":").slice(1).join(":").trim() || ""
+                const servicio  = parse("Servicio")
+                const fecha     = parse("Fecha")
+                const hora      = parse("Hora")
+                const direccion = parse("Dirección")
+                const descripcion = parse("Problema")
+
+                return (
+                  <div key={m.id} className="flex w-full justify-end">
+                    <div className="w-full max-w-[88%] overflow-hidden rounded-2xl rounded-br-sm border border-border bg-card shadow-lg">
+                      {/* Header */}
+                      <div className="flex items-center justify-between bg-primary/8 px-4 py-3 border-b border-border">
+                        <div className="flex items-center gap-2">
+                          <div className="flex size-7 items-center justify-center rounded-full bg-primary/15">
+                            <Wrench className="size-3.5 text-primary" />
+                          </div>
+                          <span className="text-[11px] font-bold text-foreground tracking-wide uppercase">Solicitud de servicio</span>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5">
+                          <CheckCircle2 className="size-3 text-emerald-600" />
+                          <span className="text-[10px] font-bold text-emerald-700">Enviado</span>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div className="px-4 py-3 space-y-2.5">
+                        {servicio && (
+                          <div className="flex items-start gap-2.5">
+                            <Wrench className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Especialidad</p>
+                              <p className="text-sm font-semibold text-foreground">{servicio}</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-2">
+                          {fecha && (
+                            <div className="flex items-start gap-2">
+                              <CalendarDays className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                              <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fecha</p>
+                                <p className="text-xs font-medium text-foreground">{fecha}</p>
+                              </div>
+                            </div>
+                          )}
+                          {hora && (
+                            <div className="flex items-start gap-2">
+                              <Clock3 className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                              <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Hora</p>
+                                <p className="text-xs font-medium text-foreground">{hora}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {direccion && (
+                          <div className="flex items-start gap-2.5">
+                            <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dirección</p>
+                              <p className="text-xs font-medium text-foreground truncate">{direccion}</p>
+                            </div>
+                          </div>
+                        )}
+                        {descripcion && (
+                          <div className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3 py-2">
+                            <AlignLeft className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground italic leading-relaxed">{descripcion}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div key={m.id} className={`flex w-full ${m.remitente === "cliente" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                      m.remitente === "cliente"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted text-foreground rounded-bl-sm"
+                    }`}
+                  >
+                    {m.texto}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 

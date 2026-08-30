@@ -8,21 +8,6 @@ import models
 router = APIRouter()
 
 
-def get_user_id_from_token(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Optional[int]:
-    if not authorization:
-        return None
-    try:
-        scheme, token = authorization.split(" ")
-        payload = decode_access_token(token)
-        if not payload:
-            return None
-        email = payload.get("sub")
-        user = db.query(models.Usuario).filter(models.Usuario.email == email).first()
-        return user.id if user else None
-    except Exception:
-        return None
-
-
 @router.get("/")
 def get_notifications(
     user_id: Optional[int] = None,

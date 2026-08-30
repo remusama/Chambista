@@ -19,21 +19,28 @@ import {
 export type Provider = {
   id: string
   name: string
-  trade: string
-  rating: number
-  reviews: number
-  price: string
-  priceUnit: string
-  district: string
-  responseTime: string
-  completionRate: number
-  avatar: string
-  verified: boolean
-  featured: boolean
-  categoryId: string
-  bio: string
-  tags: string[]
-  portfolio: string[]
+  trade?: string
+  rating?: number
+  reviews?: number
+  price?: string
+  priceUnit?: string
+  district?: string
+  responseTime?: string
+  completionRate?: number
+  avatar?: string
+  verified?: boolean
+  featured?: boolean
+  categoryId?: string
+  bio?: string
+  tags?: string[]
+  portfolio?: string[]
+  // Optional mapped properties for UI compatibility
+  photo?: string
+  categoryName?: string
+  zone?: string
+  priceFrom?: number
+  tagline?: string
+  jobsDone?: number
 }
 
 export type Category = {

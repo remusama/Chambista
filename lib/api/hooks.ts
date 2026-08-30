@@ -1,16 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import axios from "axios";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : "http://localhost:8000/api";
-
-function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export interface DashboardData {
   perfil: {
+    id: number;
     nombre: string;
     nivelVerificacion: string;
     progresoVerificacion: number;
@@ -33,8 +26,7 @@ export const useProviderDashboard = () => {
   return useQuery<DashboardData>({
     queryKey: ["providerDashboard"],
     queryFn: async () => {
-      const headers = getAuthHeaders();
-      const { data } = await axios.get(`${API_BASE}/dashboard/provider`, { headers });
+      const { data } = await apiClient.get("/dashboard/provider");
       return data;
     },
     refetchInterval: 30000, // Poll for new solicitudes every 30 seconds
@@ -46,7 +38,7 @@ export const useSearchProviders = (oficio: string | null) => {
     queryKey: ["searchProviders", oficio],
     queryFn: async () => {
       if (!oficio) return [];
-      const { data } = await axios.post(`${API_BASE}/search/`, { oficio });
+      const { data } = await apiClient.post("/search/", { oficio });
       return data;
     },
     enabled: !!oficio,
@@ -54,14 +46,12 @@ export const useSearchProviders = (oficio: string | null) => {
 };
 
 export const createBooking = async (bookingData: any) => {
-  const headers = getAuthHeaders();
-  const { data } = await axios.post(`${API_BASE}/bookings/`, bookingData, { headers });
+  const { data } = await apiClient.post("/bookings/", bookingData);
   return data;
 };
 
 export const updateBookingStatus = async (bookingId: number, estado: string) => {
-  const headers = getAuthHeaders();
-  const { data } = await axios.patch(`${API_BASE}/bookings/${bookingId}?estado=${estado}`, {}, { headers });
+  const { data } = await apiClient.patch(`/bookings/${bookingId}?estado=${estado}`, {});
   return data;
 };
 
@@ -69,11 +59,10 @@ export const useNotifications = (userId?: number) => {
   return useQuery({
     queryKey: ["notifications", userId],
     queryFn: async () => {
-      const headers = getAuthHeaders();
       const url = userId 
-        ? `${API_BASE}/notifications/?user_id=${userId}` 
-        : `${API_BASE}/notifications/`;
-      const { data } = await axios.get(url, { headers });
+        ? `/notifications/?user_id=${userId}` 
+        : `/notifications/`;
+      const { data } = await apiClient.get(url);
       return data as any[];
     },
     refetchInterval: 30000,
@@ -85,7 +74,7 @@ export const useProviderReviews = (providerId?: number) => {
     queryKey: ["providerReviews", providerId],
     queryFn: async () => {
       if (!providerId) return [];
-      const { data } = await axios.get(`${API_BASE}/reviews/provider/${providerId}`);
+      const { data } = await apiClient.get(`/reviews/provider/${providerId}`);
       return data as any[];
     },
     enabled: !!providerId,

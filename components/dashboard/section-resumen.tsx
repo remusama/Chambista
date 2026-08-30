@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { useProviderDashboard } from "@/lib/api/hooks"
-import { formatCurrency, ESTADO_LABEL, ESTADO_STYLE } from "@/lib/dashboard-data" // Mantendremos las helpers esteticas
+import { formatCurrency, ESTADO_LABEL, ESTADO_STYLE, type EstadoSolicitud } from "@/lib/dashboard-data" // Mantendremos las helpers esteticas
 import type { Section } from "./dashboard-shell"
 
 export function SectionResumen({ onNavigate }: { onNavigate?: (section: Section) => void }) {
@@ -174,8 +174,8 @@ export function SectionResumen({ onNavigate }: { onNavigate?: (section: Section)
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-foreground">{req.servicio}</span>
-                  <Badge variant="outline" className={`shrink-0 ${ESTADO_STYLE[req.estado]}`}>
-                    {ESTADO_LABEL[req.estado]}
+                  <Badge variant="outline" className={`shrink-0 ${ESTADO_STYLE[req.estado as EstadoSolicitud]}`}>
+                    {ESTADO_LABEL[req.estado as EstadoSolicitud]}
                   </Badge>
                 </div>
                 <span className="truncate text-sm text-muted-foreground">

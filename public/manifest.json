@@ -1,0 +1,28 @@
+{
+  "name": "Chambista",
+  "short_name": "Chambista",
+  "description": "Encuentra profesionales de confianza para tu hogar en Lima",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/5447b5d0-2e72-43c0-bb40-a545a174aec4-removebg-preview.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/5447b5d0-2e72-43c0-bb40-a545a174aec4-removebg-preview.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "lang": "es",
+  "dir": "ltr",
+  "scope": "/"
+}

@@ -18,22 +18,21 @@ export const metadata: Metadata = {
   description:
     'Chambista conecta a las personas con plomeros, electricistas, técnicos y más profesionales locales de confianza.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Chambista',
+  },
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/5447b5d0-2e72-43c0-bb40-a545a174aec4-removebg-preview.png',
+        sizes: '192x192',
+        type: 'image/png',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/5447b5d0-2e72-43c0-bb40-a545a174aec4-removebg-preview.png',
   },
 }
 
@@ -59,6 +58,20 @@ export default function RootLayout({
           {children}
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </QueryProvider>
+        {/* PWA Service Worker registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) { console.log('[SW] Registrado:', reg.scope); })
+                    .catch(function(err) { console.warn('[SW] Error:', err); });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )

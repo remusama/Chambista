@@ -61,8 +61,8 @@ export function SectionSolicitudes() {
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-heading text-lg font-semibold text-foreground">{req.servicio}</h3>
-                  <Badge variant="outline" className={ESTADO_STYLE[req.estado]}>
-                    {ESTADO_LABEL[req.estado]}
+                  <Badge variant="outline" className={ESTADO_STYLE[req.estado as EstadoSolicitud]}>
+                    {ESTADO_LABEL[req.estado as EstadoSolicitud]}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -82,7 +82,7 @@ export function SectionSolicitudes() {
 
             {req.fotos.length > 0 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {req.fotos.map((foto, i) => (
+                {req.fotos.map((foto: string, i: number) => (
                   <Image
                     key={i}
                     src={foto || "/placeholder.svg"}

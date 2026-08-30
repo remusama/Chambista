@@ -6,14 +6,7 @@ import { PhotoUpload } from '../photo-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { CIUDADES, DISTRITOS_POR_CIUDAD } from '@/lib/chambista-data'
+import { PERU, getProvincias, getDistritos } from '@/lib/peru-locations'
 
 export function StepContacto({ data, update }: StepProps) {
   function verificarCelular() {
@@ -24,9 +17,6 @@ export function StepContacto({ data, update }: StepProps) {
     update({ celularVerificado: true })
     alert('Celular verificado correctamente.')
   }
-
-  // Si no hay ciudad, usamos Lima por defecto o arreglo vacío
-  const distritosDisponibles = data.ciudad ? DISTRITOS_POR_CIUDAD[data.ciudad] || [] : DISTRITOS_POR_CIUDAD['Lima']
 
   return (
     <div className="space-y-6">
@@ -79,58 +69,77 @@ export function StepContacto({ data, update }: StepProps) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="correo">Correo electrónico</Label>
+        <Label htmlFor="correo">Correo electrónico (Confirmado)</Label>
         <Input
           id="correo"
           type="email"
           placeholder="tucorreo@ejemplo.com"
           value={data.correo}
-          onChange={(e) => update({ correo: e.target.value })}
+          disabled
+          className="bg-muted opacity-80 cursor-not-allowed"
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="ciudad">Ciudad</Label>
-          <Select value={data.ciudad} onValueChange={(v) => {
-            update({ ciudad: v, distrito: '' }) // Limpiar distrito al cambiar de ciudad
-          }}>
-            <SelectTrigger id="ciudad">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CIUDADES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="departamento">Departamento *</Label>
+          <select
+            id="departamento"
+            value={data.ciudad}
+            onChange={(e) => update({ ciudad: e.target.value, provincia: '', distrito: '' })}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            required
+          >
+            <option value="">Selecciona</option>
+            {PERU.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
         </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="provincia">Provincia *</Label>
+          <select
+            id="provincia"
+            value={data.provincia || ''}
+            onChange={(e) => update({ provincia: e.target.value, distrito: '' })}
+            disabled={!data.ciudad}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            required
+          >
+            <option value="">Selecciona</option>
+            {getProvincias(data.ciudad).map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="distrito">Distrito *</Label>
-          <Select value={data.distrito} onValueChange={(v) => update({ distrito: v })}>
-            <SelectTrigger id="distrito">
-              <SelectValue placeholder="Elige" />
-            </SelectTrigger>
-            <SelectContent>
-              {distritosDisponibles.map((d) => (
-                <SelectItem key={d} value={d}>
-                  {d}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            id="distrito"
+            value={data.distrito}
+            onChange={(e) => update({ distrito: e.target.value })}
+            disabled={!data.provincia}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            required
+          >
+            <option value="">Selecciona</option>
+            {getDistritos(data.ciudad, data.provincia).map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="zona">Zona / urbanización *</Label>
-          <Input
-            id="zona"
-            placeholder="Ej. Higuereta"
-            value={data.zona}
-            onChange={(e) => update({ zona: e.target.value })}
-          />
-        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="zona">Zona / urbanización *</Label>
+        <Input
+          id="zona"
+          placeholder="Ej. Higuereta"
+          value={data.zona}
+          onChange={(e) => update({ zona: e.target.value })}
+        />
       </div>
     </div>
   )

@@ -187,7 +187,11 @@ export function AssistantChat({
         const searchRes = await fetch(`${API_URL}/search/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ oficio: data.categoria })
+          body: JSON.stringify({ 
+            oficio: data.categoria,
+            distrito: data.distrito,
+            tags: data.tags
+          })
         })
         if (searchRes.ok) {
           let searchData = await searchRes.json()
@@ -209,7 +213,7 @@ export function AssistantChat({
             categoryName: p.oficios,
             rating: p.rating,
             zone: p.zonas_atencion || "Lima",
-            priceFrom: 50, // Default price
+            priceFrom: p.precio_desde || 50,
             photo: p.avatar || "/placeholder.svg"
           })).slice(0, 3)
         }

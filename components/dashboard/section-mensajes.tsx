@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MessageCircle, ArrowLeft, Send, Loader2 } from "lucide-react"
+import { MessageCircle, ArrowLeft, Send, Loader2, Wrench, CalendarDays, Clock3, MapPin, AlignLeft, Clock } from "lucide-react"
 import { useProviderDashboard } from "@/lib/api/hooks"
 
 const API = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/chat` : "http://localhost:8000/api/chat"
@@ -25,9 +25,13 @@ export function SectionMensajes() {
   // Load conversation list
   useEffect(() => {
     if (!providerId) return
-    fetch(`${API}/conversaciones/proveedor/${providerId}`)
-      .then((r) => r.json())
-      .then(setConversations)
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+    fetch(`${API}/conversaciones/proveedor/${providerId}`, {
+      headers: authHeaders
+    })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setConversations(Array.isArray(data) ? data : []))
       .catch(() => setConversations([]))
   }, [providerId])
 
@@ -44,13 +48,45 @@ export function SectionMensajes() {
     setMessages([])
     setLoading(true)
 
-    fetch(`${API}/conversaciones/${activeConvId}/mensajes`)
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+    fetch(`${API}/conversaciones/${activeConvId}/mensajes`, {
+      headers: authHeaders
+    })
       .then((r) => r.json())
       .then((msgs) => {
         setMessages(msgs.map((m: any) => ({ id: String(m.id), texto: m.texto, remitente: m.remitente, created_at: m.created_at })))
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }, [activeConvId])
+
+  // Poll for new messages every 3 seconds when activeConvId is set
+  useEffect(() => {
+    if (!activeConvId) return
+    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+
+    const interval = setInterval(async () => {
+      try {
+        const msgs = await fetch(`${API}/conversaciones/${activeConvId}/mensajes`, {
+          headers: authHeaders
+        }).then((r) => r.ok ? r.json() : [])
+        
+        if (Array.isArray(msgs)) {
+          setMessages(msgs.map((m: any) => ({ 
+            id: String(m.id), 
+            texto: m.texto, 
+            remitente: m.remitente, 
+            created_at: m.created_at 
+          })))
+        }
+      } catch (e) {
+        console.error("Error polling messages:", e)
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
   }, [activeConvId])
 
   async function sendMessage() {
@@ -62,9 +98,11 @@ export function SectionMensajes() {
     setInput("")
 
     try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+      const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
       await fetch(`${API}/conversaciones/${activeConvId}/mensajes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ texto: clean, remitente: "prestador" }),
       })
     } catch (error) {
@@ -115,21 +153,102 @@ export function SectionMensajes() {
                 <p>No hay mensajes en esta conversación.</p>
               </div>
             ) : (
-              messages.map((msg) => (
-                <div key={msg.id} className={`flex gap-3 ${msg.remitente === "prestador" ? "flex-row-reverse" : "flex-row"}`}>
-                  <div className={`flex flex-col max-w-[85%] ${msg.remitente === "prestador" ? "items-end" : "items-start"}`}>
-                    <div
-                      className={`rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap ${
-                        msg.remitente === "prestador"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      {msg.texto}
+              messages.map((msg) => {
+                const isCard = msg.texto.startsWith("[TARJETA_SOLICITUD]")
+                if (isCard) {
+                  const lines = msg.texto.split("\n")
+                  const parse = (key: string) => lines.find(l => l.includes(key))?.split(":").slice(1).join(":").trim() || ""
+                  const servicio   = parse("Servicio")
+                  const fecha      = parse("Fecha")
+                  const hora       = parse("Hora")
+                  const direccion  = parse("Dirección")
+                  const descripcion = parse("Problema")
+
+                  return (
+                    <div key={msg.id} className="flex gap-3 flex-row">
+                      <div className="w-full overflow-hidden rounded-2xl rounded-bl-sm border border-border bg-card shadow-lg">
+                        {/* Header */}
+                        <div className="flex items-center justify-between bg-amber-50/60 px-4 py-3 border-b border-amber-100">
+                          <div className="flex items-center gap-2">
+                            <div className="flex size-7 items-center justify-center rounded-full bg-amber-100">
+                              <Wrench className="size-3.5 text-amber-700" />
+                            </div>
+                            <span className="text-[11px] font-bold text-foreground tracking-wide uppercase">Solicitud recibida</span>
+                          </div>
+                          <div className="flex items-center gap-1 rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5">
+                            <Clock className="size-3 text-amber-700" />
+                            <span className="text-[10px] font-bold text-amber-800">Pendiente</span>
+                          </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-4 py-3 space-y-2.5">
+                          {servicio && (
+                            <div className="flex items-start gap-2.5">
+                              <Wrench className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                              <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Especialidad</p>
+                                <p className="text-sm font-semibold text-foreground">{servicio}</p>
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            {fecha && (
+                              <div className="flex items-start gap-2">
+                                <CalendarDays className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fecha</p>
+                                  <p className="text-xs font-medium text-foreground">{fecha}</p>
+                                </div>
+                              </div>
+                            )}
+                            {hora && (
+                              <div className="flex items-start gap-2">
+                                <Clock3 className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Hora</p>
+                                  <p className="text-xs font-medium text-foreground">{hora}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {direccion && (
+                            <div className="flex items-start gap-2.5">
+                              <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dirección</p>
+                                <p className="text-xs font-medium text-foreground truncate">{direccion}</p>
+                              </div>
+                            </div>
+                          )}
+                          {descripcion && (
+                            <div className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3 py-2">
+                              <AlignLeft className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                              <p className="text-xs text-muted-foreground italic leading-relaxed">{descripcion}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={msg.id} className={`flex gap-3 ${msg.remitente === "prestador" ? "flex-row-reverse" : "flex-row"}`}>
+                    <div className={`flex flex-col max-w-[85%] ${msg.remitente === "prestador" ? "items-end" : "items-start"}`}>
+                      <div
+                        className={`rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap ${
+                          msg.remitente === "prestador"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {msg.texto}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
           <div className="border-t border-border bg-background p-4 shrink-0">

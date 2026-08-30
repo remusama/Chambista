@@ -1,18 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
-from database import SessionLocal
+from database import get_db
 import models
+from core.auth_deps import get_current_user
 
 router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # ---- Pydantic schemas ----
 
@@ -57,8 +51,24 @@ class MensajeCreate(BaseModel):
 # ---- Endpoints ----
 
 @router.post("/conversaciones", response_model=ConversacionOut)
-def crear_o_obtener_conversacion(data: ConversacionCreate, db: Session = Depends(get_db)):
+def crear_o_obtener_conversacion(
+    data: ConversacionCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
     """Get existing conversation or create a new one."""
+    # IDOR Prevention: check that current user is either the client or the provider
+    # Usually the client starts the conversation, so current_user should match data.cliente_username
+    # (either by name or email). If it's a provider, prestador_id must match current_user.id.
+    is_client = (data.cliente_username == current_user.nombre or data.cliente_username == current_user.email)
+    is_provider = (data.prestador_id == str(current_user.id))
+    
+    if not is_client and not is_provider:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para crear/acceder a esta conversación."
+        )
+
     conv = db.query(models.Conversacion).filter(
         models.Conversacion.cliente_username == data.cliente_username,
         models.Conversacion.prestador_id == data.prestador_id
@@ -87,8 +97,19 @@ def crear_o_obtener_conversacion(data: ConversacionCreate, db: Session = Depends
 
 
 @router.get("/conversaciones/{username}", response_model=List[ConversacionOut])
-def listar_conversaciones(username: str, db: Session = Depends(get_db)):
+def listar_conversaciones(
+    username: str, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
     """List all conversations for a given user."""
+    # IDOR Prevention: ensure the requested username belongs to the authenticated user
+    if username != current_user.nombre and username != current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para listar conversaciones de otro usuario."
+        )
+
     convs = db.query(models.Conversacion).filter(
         models.Conversacion.cliente_username == username
     ).order_by(models.Conversacion.updated_at.desc()).all()
@@ -107,8 +128,19 @@ def listar_conversaciones(username: str, db: Session = Depends(get_db)):
     return result
 
 @router.get("/conversaciones/proveedor/{provider_id}", response_model=List[ConversacionOut])
-def listar_conversaciones_proveedor(provider_id: str, db: Session = Depends(get_db)):
+def listar_conversaciones_proveedor(
+    provider_id: str, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
     """List all conversations for a given provider."""
+    # IDOR Prevention: ensure the provider_id matches current_user.id
+    if provider_id != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para listar conversaciones de otro proveedor."
+        )
+
     convs = db.query(models.Conversacion).filter(
         models.Conversacion.prestador_id == provider_id
     ).order_by(models.Conversacion.updated_at.desc()).all()
@@ -128,11 +160,24 @@ def listar_conversaciones_proveedor(provider_id: str, db: Session = Depends(get_
 
 
 @router.get("/conversaciones/{conv_id}/mensajes")
-def obtener_mensajes(conv_id: int, db: Session = Depends(get_db)):
+def obtener_mensajes(
+    conv_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
     """Get all messages for a conversation."""
     conv = db.query(models.Conversacion).filter(models.Conversacion.id == conv_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversación no encontrada")
+
+    # IDOR Prevention: check if authenticated user is part of this conversation
+    is_client = (conv.cliente_username == current_user.nombre or conv.cliente_username == current_user.email)
+    is_provider = (conv.prestador_id == str(current_user.id))
+    if not is_client and not is_provider:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para ver mensajes de esta conversación."
+        )
 
     return [
         {
@@ -146,11 +191,25 @@ def obtener_mensajes(conv_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/conversaciones/{conv_id}/mensajes")
-def enviar_mensaje(conv_id: int, data: MensajeCreate, db: Session = Depends(get_db)):
+def enviar_mensaje(
+    conv_id: int, 
+    data: MensajeCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
     """Send a message in a conversation."""
     conv = db.query(models.Conversacion).filter(models.Conversacion.id == conv_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversación no encontrada")
+
+    # IDOR Prevention: check if authenticated user is part of this conversation
+    is_client = (conv.cliente_username == current_user.nombre or conv.cliente_username == current_user.email)
+    is_provider = (conv.prestador_id == str(current_user.id))
+    if not is_client and not is_provider:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para enviar mensajes en esta conversación."
+        )
 
     msg = models.Mensaje(
         conversacion_id=conv_id,
@@ -160,4 +219,30 @@ def enviar_mensaje(conv_id: int, data: MensajeCreate, db: Session = Depends(get_
     db.add(msg)
     db.commit()
     db.refresh(msg)
+    
+    # Update conversation updated_at
+    conv.updated_at = msg.created_at
+    db.commit()
+    
+    # Send notification to the other party
+    other_party_id = int(conv.prestador_id) if is_client else None
+    if not is_client:
+        # Find client user ID
+        client_user = db.query(models.Usuario).filter(
+            (models.Usuario.nombre == conv.cliente_username) | 
+            (models.Usuario.email == conv.cliente_username)
+        ).first()
+        if client_user:
+            other_party_id = client_user.id
+            
+    if other_party_id:
+        db_notif = models.Notification(
+            user_id=other_party_id,
+            tipo="mensaje_nuevo",
+            titulo="Nuevo mensaje",
+            contenido=f"Has recibido un mensaje: {data.texto[:50]}..."
+        )
+        db.add(db_notif)
+        db.commit()
+
     return {"id": msg.id, "remitente": msg.remitente, "texto": msg.texto}

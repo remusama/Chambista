@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, ai, conversations, clientes, users, providers, search, bookings, reviews, payments, notifications, dashboard
+from routers import auth, ai, conversations, clientes, providers, search, bookings, reviews, payments, notifications, dashboard
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,6 +19,10 @@ allowed_origins = [
 # Si quieres permitir todos temporalmente, descomenta la siguiente línea y comenta la de arriba.
 allowed_origins = ["*"]
 
+from core.security_middleware import SecurityHeadersMiddleware
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -28,7 +32,6 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
 app.include_router(clientes.router, prefix="/api/clientes", tags=["clientes"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])

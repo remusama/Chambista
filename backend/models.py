@@ -15,6 +15,8 @@ class Usuario(Base):
     hashed_password = Column(String)
     ciudad = Column(String, nullable=True) # Step 1
     distrito_principal = Column(String, nullable=True) # Step 1
+    departamento = Column(String, nullable=True)
+    provincia = Column(String, nullable=True)
     
     rol = Column(String, default="cliente") # cliente, trabajador, empresa
     activo = Column(Boolean, default=True)
@@ -27,6 +29,7 @@ class PerfilCliente(Base):
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), unique=True)
     ciudad = Column(String, nullable=True)
+    provincia = Column(String, nullable=True)
     distrito = Column(String, nullable=True)
     zona = Column(String, nullable=True)
     servicios_frecuentes = Column(String, nullable=True)  # comma-separated category ids
@@ -174,3 +177,17 @@ class Payment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     booking = relationship("Booking")
+
+class PaymentCard(Base):
+    __tablename__ = "payment_cards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("usuarios.id"))
+    brand = Column(String) # Visa, Mastercard, Amex, etc.
+    last4 = Column(String)
+    exp_month = Column(Integer)
+    exp_year = Column(Integer)
+    cardholder = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("Usuario", foreign_keys=[user_id])

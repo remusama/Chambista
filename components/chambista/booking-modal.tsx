@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Calendar, Clock, MapPin, Loader2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Provider } from "@/lib/chambista-data"
+import { createBooking } from "@/lib/api/hooks"
+import { apiClient } from "@/lib/api/client"
 
 export function BookingModal({
   provider,
@@ -22,25 +24,53 @@ export function BookingModal({
   const [problema, setProblema] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const todayStr = new Date().toISOString().split("T")[0]
+
+  // Fetch client details to prefill address
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const meRes = await apiClient.get("/auth/me")
+        const user = meRes.data
+        if (user) {
+          const profileRes = await apiClient.get("/clientes/perfil")
+          const profile = profileRes.data
+          if (profile) {
+            const fullAddress = [profile.zona, profile.distrito, profile.provincia].filter(Boolean).join(", ")
+            setDireccion(fullAddress || user.distrito_principal || "")
+          }
+        }
+      } catch (err) {
+        console.error("Error prefilling client address:", err)
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    if (fecha === todayStr) {
+      const now = new Date()
+      const hours = now.getHours()
+      const minutes = now.getMinutes()
+      const nowTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+      if (val < nowTimeStr) {
+        alert("No puedes elegir una hora del pasado para hoy.")
+        return
+      }
+    }
+    setHora(val)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // Obtener el token y resolver el ID real del cliente
-      const token = localStorage.getItem("chambista_token")
-      
-      // Pedir al backend el ID del usuario actual usando el token
-      let clienteId: number | null = null
-      if (token) {
-        const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        if (meRes.ok) {
-          const meData = await meRes.json()
-          clienteId = meData.id
-        }
-      }
+      // Pedir al backend el ID del usuario actual
+      const meRes = await apiClient.get("/auth/me")
+      const clienteId = meRes.data?.id
+      const clienteNombre = meRes.data?.nombre || "Cliente"
 
       if (!clienteId) {
         alert("No se pudo identificar tu cuenta. Por favor, inicia sesión nuevamente.")
@@ -58,16 +88,48 @@ export function BookingModal({
         descripcion: problema
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/bookings/`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(payload)
-      })
+      // 1. Create DB booking
+      await createBooking(payload)
 
-      if (!res.ok) throw new Error("Error al crear reserva")
+      // 2. Open chat conversation and post the designed [TARJETA_SOLICITUD] card
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
+        const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+        const convRes = await fetch(`${apiBase}/api/chat/conversaciones`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({
+            cliente_username: clienteNombre,
+            prestador_id: provider.id,
+            prestador_nombre: provider.name,
+            prestador_categoria: (provider as any).categoryName || (provider as any).trade || "Servicio General",
+          }),
+        })
+
+        if (convRes.ok) {
+          const conv = await convRes.json()
+          const cardMessage = `[TARJETA_SOLICITUD]
+🛠️ Servicio: ${(provider as any).categoryName || (provider as any).trade || "Servicio General"}
+📅 Fecha: ${fecha}
+⏰ Hora: ${hora}
+📍 Dirección: ${direccion}
+📝 Problema: ${problema}
+💰 Estado: Nueva Solicitud (Pendiente de aprobación)`
+
+          await fetch(`${apiBase}/api/chat/conversaciones/${conv.id}/mensajes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({
+              texto: cardMessage,
+              remitente: "cliente"
+            })
+          })
+        }
+      } catch (errChat) {
+        console.error("Error creating chat card message:", errChat)
+      }
       
       onSuccess()
     } catch (err) {
@@ -92,11 +154,25 @@ export function BookingModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5"><Calendar className="size-4" /> Fecha</Label>
-              <Input type="date" required value={fecha} onChange={e => setFecha(e.target.value)} />
+              <Input 
+                type="date" 
+                required 
+                min={todayStr} 
+                value={fecha} 
+                onChange={e => {
+                  setFecha(e.target.value)
+                  setHora("") // Reset time validation
+                }} 
+              />
             </div>
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5"><Clock className="size-4" /> Hora</Label>
-              <Input type="time" required value={hora} onChange={e => setHora(e.target.value)} />
+              <Input 
+                type="time" 
+                required 
+                value={hora} 
+                onChange={handleTimeChange} 
+              />
             </div>
           </div>
           

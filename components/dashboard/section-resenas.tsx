@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Star } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { useProviderDashboard } from "@/lib/api/hooks"
+import { useProviderDashboard, useProviderReviews } from "@/lib/api/hooks"
 
 function Stars({ value }: { value: number }) {
   return (
@@ -31,31 +30,8 @@ type Review = {
 
 export function SectionResenas() {
   const { data, isLoading, isError } = useProviderDashboard()
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [loadingReviews, setLoadingReviews] = useState(false)
-
-  useEffect(() => {
-    if (!data) return
-    
-    // Obtener el provider_id desde el JWT para buscar sus reseñas
-    const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
-    if (!token) return
-
-    setLoadingReviews(true)
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(r => r.json())
-    .then(me => {
-      return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/reviews/provider/${me.id}`)
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (Array.isArray(data)) setReviews(data)
-    })
-    .catch(console.error)
-    .finally(() => setLoadingReviews(false))
-  }, [data])
+  const providerId = data?.perfil?.id
+  const { data: reviews = [], isLoading: loadingReviews } = useProviderReviews(providerId)
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Cargando reseñas...</div>
   if (isError || !data) return <div className="p-8 text-center text-destructive">Error al cargar datos. Asegúrate de tener el backend corriendo.</div>
