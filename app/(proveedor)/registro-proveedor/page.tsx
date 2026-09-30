@@ -91,7 +91,7 @@ export default function RegistroProveedor() {
     const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null;
     if (!token) return;
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -181,7 +181,7 @@ export default function RegistroProveedor() {
         precio_referencial: formData.precio
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/providers/perfil`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/providers/perfil`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

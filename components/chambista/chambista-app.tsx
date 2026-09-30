@@ -230,7 +230,7 @@ function ProfileView({ user, onLogout, onSelectProvider }: { user: {name: string
         setFavoriteProviders([])
         return
       }
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiBase}/api/providers/`)
       if (res.ok) {
         const allProviders = await res.json()
@@ -264,7 +264,7 @@ function ProfileView({ user, onLogout, onSelectProvider }: { user: {name: string
     const token = localStorage.getItem("chambista_token")
     if (!token) return
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiBase}/api/clientes/reviews`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -284,7 +284,7 @@ function ProfileView({ user, onLogout, onSelectProvider }: { user: {name: string
     if (!token) return;
 
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const [cardsRes, transRes] = await Promise.all([
         fetch(`${apiBase}/api/payments/methods`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${apiBase}/api/payments/transactions`, { headers: { Authorization: `Bearer ${token}` } })
@@ -306,7 +306,7 @@ function ProfileView({ user, onLogout, onSelectProvider }: { user: {name: string
     if (!token) return;
 
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiBase}/api/payments/methods`, {
         method: "POST",
         headers: {
@@ -346,7 +346,7 @@ function ProfileView({ user, onLogout, onSelectProvider }: { user: {name: string
     if (!token) return;
 
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiBase}/api/payments/methods/${cardId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }

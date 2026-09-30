@@ -95,7 +95,7 @@ export function BookingModal({
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("chambista_token") : null
         const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
         const convRes = await fetch(`${apiBase}/api/chat/conversaciones`, {
           method: "POST",

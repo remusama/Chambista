@@ -89,7 +89,7 @@ function StepCuenta({
           onBlur={async () => {
             if (email && email.includes('@')) {
               try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(email)}`)
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/check-email?email=${encodeURIComponent(email)}`)
                 const d = await res.json()
                 if (d.exists) setEmailError('Este correo electrónico ya está registrado.')
                 else setEmailError('')
@@ -197,7 +197,7 @@ export function OnboardingWizard() {
     setRegistering(true)
     try {
       const fallbackName = email.split('@')[0]
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/register`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: fallbackName, email, password, rol }),
@@ -209,7 +209,7 @@ export function OnboardingWizard() {
         return
       }
       // Auto-login
-      const lr = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/login`, {
+      const lr = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -261,7 +261,7 @@ export function OnboardingWizard() {
 
     try {
       // Obtener el ID del usuario actual
-      const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
+      const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 
@@ -299,7 +299,7 @@ export function OnboardingWizard() {
         precio_referencial: data.precioReferencial,
       }
 
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/providers/perfil`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/providers/perfil`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -93,7 +93,7 @@ export function OnboardingClienteWizard() {
     setLoading(true)
     try {
       // 1. Register
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/register`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -112,7 +112,7 @@ export function OnboardingClienteWizard() {
       }
 
       // 2. Auto-login
-      const lr = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/login`, {
+      const lr = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: data.email, password: data.password }),
@@ -127,7 +127,7 @@ export function OnboardingClienteWizard() {
       // 3. Save client profile
       const token = localStorage.getItem('chambista_token')
       if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/clientes/perfil`, {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clientes/perfil`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ export function OnboardingClienteWizard() {
     if (step === 0) {
       setLoading(true)
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
         const check = await res.json()
         if (check.exists) {
           setEmailError('Este correo electrónico ya está registrado.')
@@ -263,7 +263,7 @@ export function OnboardingClienteWizard() {
                 onBlur={async () => {
                   if (data.email && data.email.includes('@')) {
                     try {
-                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
                       const check = await res.json()
                       if (check.exists) {
                         setEmailError('Este correo electrónico ya está registrado.')
