@@ -18,7 +18,6 @@ class PerfilProviderUpdate(BaseModel):
     ruc: Optional[str] = None
     razon_social: Optional[str] = None
     telefono: Optional[str] = None
-    departamento: Optional[str] = None
     provincia: Optional[str] = None
     distrito: Optional[str] = None
     oficio_principal: Optional[str] = None
@@ -54,7 +53,6 @@ def create_or_update_perfil(
     if data.apellidos is not None: current_user.apellidos = data.apellidos
     if data.dni is not None: current_user.dni = data.dni
     if data.telefono is not None: current_user.telefono = data.telefono
-    if data.departamento is not None: current_user.departamento = data.departamento
     if data.provincia is not None: current_user.provincia = data.provincia
     if data.distrito is not None: current_user.distrito_principal = data.distrito
 
@@ -116,7 +114,6 @@ def create_or_update_perfil(
 
 
 
-
 @router.get("/")
 def list_providers(db: Session = Depends(get_db)):
     """Lista todos los proveedores con su perfil."""
@@ -143,3 +140,4 @@ def list_providers(db: Session = Depends(get_db)):
             "foto_perfil": perfil.foto_perfil if perfil else None,
         })
     return results
+
